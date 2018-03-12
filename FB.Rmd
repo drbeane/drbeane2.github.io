@@ -1,0 +1,274 @@
+---
+title: "Facebook Social Network Analysis"
+output: 
+    html_notebook:
+        theme: flatly
+---
+
+### Load Packages
+
+```{r, warning=FALSE, message=FALSE}
+require(igraph)
+require(dplyr)
+require(RColorBrewer)
+```
+
+### Read Data
+
+```{r}
+nodes <- read.table("nodes.txt", sep="\t", header = TRUE, stringsAsFactors = FALSE)
+edges <- read.table("edges.txt", sep="\t", header = TRUE)
+
+head(nodes)
+```
+
+
+```{r}
+head(edges)
+```
+
+```{r}
+nrow(edges)
+```
+
+### Create Graph
+
+```{r}
+fb <- graph_from_data_frame(edges,directed=FALSE)
+plot(fb)
+```
+
+```{r, fig.width = 20}
+plot(fb, vertex.label = NA, vertex.size = 3)
+```
+
+### Remove my Node
+
+```{r}
+nodes <- filter(nodes, Node != 'n0')
+edges <- edges %>% filter(Source != 'n0' & Target != 'n0')
+
+nrow(edges)
+```
+
+
+```{r, fig.width = 20}
+set.seed(1)
+fb <- graph_from_data_frame(edges,directed=FALSE)
+plot(fb, vertex.label = NA, vertex.size = 3)
+```
+
+### Calculate Centrality Measures
+
+```{r}
+dC <- degree(fb)
+bC <- betweenness(fb)
+cC <- closeness(fb)
+
+centDF <- data.frame(Node = names(dC), dCent = unname(dC), bCent = unname(bC), cCent = unname(cC), 
+                     stringsAsFactors = FALSE)
+
+nodes <- left_join(nodes, centDF, by='Node')
+nodes
+```
+
+
+```{r}
+summary(nodes)
+```
+
+Visualize centrality measures. 
+
+```{r, fig.width = 20}
+ct <- cut(bC, c(-1,5,67,330,1000,50000), labels=FALSE)
+myPal <- brewer.pal(5, "RdPu")
+
+set.seed(1)
+plot(fb, vertex.label = NA, vertex.size = ct, vertex.color = myPal[ct])
+```
+
+```{r, fig.width = 20}
+ct <- cut(bC, c(-1,1000,20000, 50000), labels=FALSE)
+myPal <- brewer.pal(3, "RdPu")
+
+set.seed(1)
+plot(fb, vertex.label = NA, vertex.size = 2+ct, vertex.color = myPal[ct])
+```
+
+Find the nodes with the highest betweeness centrality.
+
+```{r}
+arrange(nodes, desc(bCent))
+```
+
+Find the nodes with the highest degree centrality.
+
+```{r}
+arrange(nodes, desc(dCent))
+```
+
+Find the nodes with the highest closeness centrality.
+
+```{r}
+arrange(nodes, desc(cCent))
+```
+
+### Community Detection
+
+```{r, fig.width = 20}
+ceb <- cluster_edge_betweenness(fb)
+
+set.seed(1)
+plot(ceb, fb, vertex.label = NA, vertex.size = 3)
+```
+
+
+```{r}
+length(ceb)
+```
+
+```{r}
+mem <- membership(ceb)
+commDF <- data.frame(Node = names(mem), Comm = as.vector(unname(mem)), stringsAsFactors = FALSE)
+
+nodes <- left_join(nodes, commDF, by='Node')
+nodes
+
+```
+
+
+```{r}
+nodes %>%
+  group_by(Comm) %>%
+  count() %>%
+  arrange(desc(n))
+```
+
+```{r}
+nodes %>% filter(Comm == 1) %>% arrange(desc(bCent))
+```
+
+
+
+<center>
+Community | Size | Description
+-----|-----|----------------------------------------------
+1 | 184 | People from MST.
+6 | 48 | Close friends from MST.
+5 | 47 | My family.
+8 | 45 | My wife's family and friends. 
+2 | 43 | People from HS.
+4 | 13 | PSU students. 
+16 | 11 | LU students.
+9 | 6 | Rock climbers.
+11 | 6 | People from 6 South. 
+15 | 6 | PSU students.
+7 | 5 | Rolla townies. 
+13 | 4 | PSU students.
+18 | 4 | PSU faculty. 
+10 | 3 | Advisor and his family. 
+3 | 2 | PSU students. 
+14 | 2 | Vegans. 
+19 | 1 | MST student.
+12 | 1 | MST student. 
+17 | 1 | Friend of my wife. 
+20 | 1 | MST student. 
+21 | 1 | MST student. 
+22 | 1 | MST grad student. 
+</center>
+
+```{r, fig.width = 20}
+set.seed(1)
+plot(fb, vertex.label = mem, vertex.size = 5)
+```
+
+
+```{r, fig.width = 20}
+comm8 <- filter(nodes, Comm == 8)
+g8 <- induced.subgraph(fb, vids = comm8$Node) 
+plot(g8)
+```
+
+
+
+```{r}
+sel<- V(g8)$name
+
+selDF <- data.frame(Node = sel, stringsAsFactors = FALSE)
+selDF <- left_join(selDF, nodes, by='Node')
+
+selDF
+```
+
+
+```{r, fig.width = 20}
+plot(g8, vertex.label = selDF$Name, vertex.label.cex = 1.5)
+```
+
+
+### Find cliques
+
+
+```{r}
+lc <- largest_cliques(fb)
+lc
+```
+
+```{r}
+c1 <- lc[[1]]$name
+filter(nodes, Node %in% c1)
+```
+
+
+```{r}
+c2 <- lc[[2]]$name
+filter(nodes, Node %in% c2)
+```
+
+```{r}
+c3 <- lc[[3]]$name
+filter(nodes, Node %in% c3)
+```
+
+
+```{r}
+mc <- max_cliques(fb, min = 10)
+sapply(mc, length)
+```
+
+
+```{r}
+filter(nodes, Node %in% mc[[1]]$name)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
